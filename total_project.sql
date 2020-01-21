@@ -8,9 +8,6 @@ CREATE DATABASE "IMDB"
     OWNER = postgres
     ENCODING = 'UTF8';
 
------ connect to IMDB
-\c IMDB
-
 ----- from IMBD bulkload script
 ----- Note: to ingest the tsv files skipping the first line I used the Linux/mac command "tail"
 DROP TABLE IF EXISTS NameBasics;
@@ -93,10 +90,6 @@ CREATE TABLE Starsin ( --for insert join with TitlePrincipals where category='ac
 	nid char(10) --NameBasics.nid
     );
 
-
------ show table
-
-\dt;
 
 ----- Point c
 
@@ -225,7 +218,7 @@ ON DELETE CASCADE;
 
 ----- Point b
 
------ Check nn. Of movie directed by nid of Ridley Scott:
+----- Check number of movie directed by nid of Ridley Scott:
 SELECT  *
 from directs
 WHERE nid IN
@@ -300,14 +293,6 @@ DETAIL:  Key (nid)=(123456799 ) is not present in table "director".
 
 ----- Problem 3
 ----- point a
----- No need to specify the descending order of their avgRating because it's already been 
----- implemented in the insert part.
-
-SELECT *
-FROM movie
-LIMIT 20;
-
---- if not:
 
 SELECT *
 FROM movie
@@ -356,8 +341,6 @@ LIMIT 20;
 
 
 ----- point f 
-
-
 SELECT DISTINCT d.name,d.dir_rat, a.max_act_rating FROM
 	(
 	SELECT  director.nid,director.name, max(movie.avgRating) AS dir_rat 
@@ -398,11 +381,9 @@ HAVING COUNT(*) IN (
 	SELECT COUNT (DISTINCT primaryTitle)
 	FROM movie 
 	WHERE primaryTitle LIKE 'Star Trek%'
-	AND startYear BETWEEN 1982 AND 1994);
+	AND startYear BETWEEN 1982 AND 1991);
 
 ----- point i
-
-
 SELECT DISTINCT 
 		(SELECT name FROM actor WHERE nid = S1.nid),
 		(SELECT name FROM actor WHERE nid = S2.nid)
@@ -462,7 +443,6 @@ CREATE TRIGGER actor_birthYear
 	EXECUTE PROCEDURE public.checkActorYear('name', 'birthYear');
 
 ----- Point b
-
 INSERT INTO actor VALUES ('0123456777', 'Fred Astaire', 1905, 1987 );
 ERROR:  Different birthYear for the same actor Fred Astaire
 CONTEXT:  PL/pgSQL function checkactoryear() line 9 at RAISE

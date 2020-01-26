@@ -94,10 +94,6 @@ CREATE TABLE Starsin ( --for insert join with TitlePrincipals where category='ac
     );
 
 
------ show table
-
-\dt;
-
 ----- Point c
 
 INSERT INTO Movie(
@@ -133,7 +129,7 @@ SELECT DISTINCT
 		birthYear, 
 		deathYear
 FROM NameBasics JOIN TitlePrincipals USING (nid)
-WHERE category LIKE 'director%'
+WHERE category = 'director'
 AND tid IN (
 	SELECT  tid
 	FROM movie 
@@ -167,7 +163,7 @@ INSERT INTO Directs (
 		nid )
 SELECT  tid, nid
 FROM NameBasics JOIN TitlePrincipals USING (nid)
-WHERE category LIKE 'director%'
+WHERE category = 'director'
 AND tid IN (
 	SELECT  tid
 	FROM movie 
@@ -186,7 +182,7 @@ AND tid IN (
 	FROM movie 
 	);
 
---INSERT 0 19180
+--INSERT 0 19180
 
 
 ----- Problem 2
@@ -198,6 +194,10 @@ ALTER TABLE Movie ADD PRIMARY KEY (tid);
 ALTER TABLE Director ADD PRIMARY KEY (nid);
 
 ALTER TABLE Actor ADD PRIMARY KEY (nid);
+
+ALTER TABLE directs ADD PRIMARY KEY (tid, nid);
+
+ALTER TABLE starsin ADD PRIMARY KEY (tid, nid);
 
 ALTER TABLE directs 
 ADD CONSTRAINT "director_name" FOREIGN KEY (nid) 
@@ -225,7 +225,7 @@ ON DELETE CASCADE;
 
 ----- Point b
 
------ Check nn. Of movie directed by nid of Ridley Scott:
+----- Check number of movie directed by nid of Ridley Scott:
 SELECT  *
 from directs
 WHERE nid IN
@@ -243,7 +243,7 @@ SET nid = 123456789
 WHERE nid = (
 	SELECT nid
 	FROM director
-	WHERE name LIKE 'Ridley Scott%'
+	WHERE name LIKE 'Ridley Scott'
 	);
 
 ---- repeat the first query
@@ -252,7 +252,7 @@ from directs
 WHERE nid IN
 	(SELECT nid
 	 FROM director
-	 WHERE name LIKE 'Ridley Scott%'
+	 WHERE name LIKE 'Ridley Scott'
 	);
 ----- same result with new nid: result 13
 
@@ -300,14 +300,6 @@ DETAIL:  Key (nid)=(123456799 ) is not present in table "director".
 
 ----- Problem 3
 ----- point a
----- No need to specify the descending order of their avgRating because it's already been 
----- implemented in the insert part.
-
-SELECT *
-FROM movie
-LIMIT 20;
-
---- if not:
 
 SELECT *
 FROM movie
@@ -324,10 +316,10 @@ JOIN starsIn USING (nid)
 
 ----- point c. As discussed in class endYear is "null" for every movie.
 
-SELECT  primaryTitle, startYear, endYear, (endYear - startYear) AS production_duration
+SELECT DISTINCT primaryTitle, startYear, endYear, (endYear - startYear) AS production_duration
 FROM movie JOIN directs USING (tid)
-WHERE tid IN (
-	SELECT tid 
+WHERE nid IN (
+	SELECT nid 
 	FROM director 
 	WHERE deathYear IS NULL
 )
@@ -356,27 +348,24 @@ LIMIT 20;
 
 
 ----- point f 
-
-
-SELECT DISTINCT d.name,d.dir_rat, a.max_act_rating FROM
-	(
-	SELECT  director.nid,director.name, max(movie.avgRating) AS dir_rat 
-	FROM directs 
-	JOIN movie USING (tid) JOIN director USING (nid)
-	GROUP BY director.nid,director.name
-	)d
+SELECT DISTINCT d.name FROM
+        (
+        SELECT  director.nid,director.name, max(movie.avgRating) AS dir_rat
+        FROM directs
+        JOIN movie USING (tid) JOIN director USING (nid)
+        GROUP BY director.nid,director.name
+        )d
  JOIN
-	(
-	SELECT actor.nid, actor.name, 
-		   MAX(movie.avgRating) AS max_act_rating
-	FROM starsin
-	JOIN movie USING (tid) JOIN actor USING (nid)
-	GROUP BY primaryTitle, startYear, actor.name,actor.nid
-	)a
- ON d.nid=a.nid 
+        (
+        SELECT actor.nid, actor.name,
+                   MAX(movie.avgRating) AS max_act_rating
+        FROM starsin
+        JOIN movie USING (tid) JOIN actor USING (nid)
+        GROUP BY primaryTitle, startYear, actor.name,actor.nid
+        )a
+ ON d.nid=a.nid
  WHERE d.dir_rat<a.max_act_rating
- ORDER BY dir_rat,max_act_rating;
-
+ ORDER BY name;
 
 ----- point g
 SELECT * FROM (
@@ -389,6 +378,20 @@ SELECT * FROM (
 WHERE ceiling((foo.total +0.1)/2)=foo.ordered ;
 
 ----- point h
+SELECT name FROM actor WHERE nid IN 
+(
+SELECT nid
+FROM StarsIn WHERE tid IN
+(SELECT tid FROM movie WHERE primaryTitle LIKE 'Star Trek%' AND startYear BETWEEN 1982 AND 1991)   
+  EXCEPT   
+SELECT C.nid   
+FROM (SELECT A.nid, B.tid 
+FROM StarsIn A, Movie B WHERE B.primaryTitle LIKE 'Star Trek%' AND startYear BETWEEN 1982 AND 1991         
+       EXCEPT         
+      SELECT nid, tid FROM StarsIn) C
+	);
+
+---version 2:
 SELECT actor.name
 FROM actor JOIN starsIn USING (nid) JOIN movie USING (tid)
 WHERE primaryTitle LIKE 'Star Trek%' 
@@ -398,44 +401,23 @@ HAVING COUNT(*) IN (
 	SELECT COUNT (DISTINCT primaryTitle)
 	FROM movie 
 	WHERE primaryTitle LIKE 'Star Trek%'
-	AND startYear BETWEEN 1982 AND 1994);
+	AND startYear BETWEEN 1982 AND 1991);
 
 ----- point i
-
-
 SELECT DISTINCT 
 		(SELECT name FROM actor WHERE nid = S1.nid),
 		(SELECT name FROM actor WHERE nid = S2.nid)
-
-FROM starsin S1, starsin S2
-WHERE S1.nid < S2.nid
-AND S1.tid=S2.tid
-AND NOT exists (
-	(
-	SELECT tid
-	FROM StarsIn 
-	WHERE nid=S1.nid
-
-	EXCEPT ALL
-
-	SELECT tid
-	FROM starsIn WHERE nid=S2.nid
-	)
-
-	UNION ALL
-
-	(
-	SELECT tid
-	FROM starsIn 
-	WHERE nid=S2.nid
-
-	EXCEPT ALL
-
-	SELECT tid
-	FROM starsin 
-	WHERE nid=S1.nid
-	)
+FROM StarsIn S1, StarsIn S2 	             			        
+WHERE S1.nid < S2.nid AND NOT exists (
+    (SELECT tid FROM StarsIn WHERE nid=S1.nid
+     EXCEPT ALL 
+     SELECT tid FROM StarsIn WHERE nid=S2.nid)
+    UNION ALL 
+    (SELECT tid FROM StarsIn WHERE nid=S2.nid
+     EXCEPT ALL 
+     SELECT tid FROM StarsIn WHERE nid=S1.nid)
 );
+
 
 ----- Problem 4
 
@@ -462,7 +444,6 @@ CREATE TRIGGER actor_birthYear
 	EXECUTE PROCEDURE public.checkActorYear('name', 'birthYear');
 
 ----- Point b
-
 INSERT INTO actor VALUES ('0123456777', 'Fred Astaire', 1905, 1987 );
 ERROR:  Different birthYear for the same actor Fred Astaire
 CONTEXT:  PL/pgSQL function checkactoryear() line 9 at RAISE
@@ -493,7 +474,7 @@ SELECT tid
 FROM starsIn 
 WHERE nid = (
 SELECT nid FROM actor
-	WHERE name LIKE 'Robert De Niro%'
+	WHERE name LIKE 'Robert De Niro'
 );
 
 -- (31 rows)
@@ -523,7 +504,7 @@ SELECT nid
 FROM starsin 
 GROUP BY nid
 HAVING COUNT(tid)>=3;
-(1623 rows)
+(1622 rows)
 
 -- A-Priori Step 1: Materialize the frequent 1-itemsets into a new table starsin_step1
 CREATE OR REPLACE VIEW starsin_step1 AS (
@@ -548,11 +529,11 @@ WHERE s1.tid = s2.tid
   AND s1.nid< s2.nid
 GROUP BY s1.nid, s2.nid
 HAVING COUNT(s1.tid)>=3;
-(186 rows)
+(184 rows)
 
 
 NOTE: OPTIONAL
---the above query gives 186 rows, the same result of this query
+--the above query gives 184 rows, the same result of this query
 SELECT DISTINCT 
 		(SELECT name FROM actor WHERE nid = S1.nid),
 		(SELECT name FROM actor WHERE nid = S2.nid)
@@ -562,7 +543,7 @@ SELECT DISTINCT
        WHERE s1.nid > s2.nid
            GROUP BY s2.nid, s1.nid
            HAVING COUNT(*)  >= 3
-           ORDER BY 2,1
+           ORDER BY 2,1;
 
 ----point b
 
@@ -587,8 +568,8 @@ CREATE OR REPLACE VIEW starsin_step2 AS (
     HAVING COUNT(s3.tid)>=3)
   );
 
---Lets check how many records view has ==> 662 records 
-SELECT COUNT(*) FROM starsin_step2 
+--Lets check how many records view has ==> 655 records 
+SELECT COUNT(*) FROM starsin_step2; 
 
 -- Select frequent combinations of actors and 3-itemsets
 ---39 records
@@ -634,5 +615,4 @@ SELECT DISTINCT  s3.nid AS actor1, s2.nid AS actor2, s1.nid AS actor3
        WHERE  s1.nid > s2.nid
        		AND s2.nid>s3.nid
            GROUP BY s1.nid, s2.nid,s3.nid
-           HAVING COUNT(*)  >= 3
-
+           HAVING COUNT(*)  >= 3;
